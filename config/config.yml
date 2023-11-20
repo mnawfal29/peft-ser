@@ -1,8 +1,3 @@
 data_dir:
-  crema_d: /project/shrikann_35/tiantiaf/ser-data/CREMA-D/
-  iemocap: /project/shrikann_35/tiantiaf/ser-data/iemocap/
-  meld: /project/shrikann_35/tiantiaf/ser-data/MELD.Raw/
-  msp-improv: /project/shrikann_35/tiantiaf/ser-data/MSP-IMPROV/
-  msp-podcast: /project/shrikann_35/tiantiaf/ser-data/MSP-podcast
-  ravdess: /project/shrikann_35/tiantiaf/ser-data/Ravdess
-project_dir: /project/shrikann_35/tiantiaf/effcient-ser
+  crema_d: /peft-ser/CREMA-D/
+project_dir: /peft-ser

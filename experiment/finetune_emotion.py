@@ -25,9 +25,9 @@ sys.path.append(os.path.join(str(Path(os.path.realpath(__file__)).parents[1]), '
 from utils import parse_finetune_args, set_seed, log_epoch_result, log_best_result
 
 # from utils
-from wav2vec import Wav2VecWrapper
-from wavlm_plus import WavLMWrapper
-from whisper import WhisperWrapper
+from model.wav2vec import Wav2VecWrapper
+from model.wavlm_plus import WavLMWrapper
+from model.whisper import WhisperWrapper
 from evaluation import EvalMetric
 from dataloader import load_finetune_audios, set_finetune_dataloader, return_weights
 

@@ -289,6 +289,13 @@ def parse_finetune_args():
     )
 
     parser.add_argument(
+        '--ladder_reduction_factor', 
+        default=8,
+        type=int, 
+        help='adapter dimension'
+    )
+
+    parser.add_argument(
         '--use-conv-output', 
         action='store_true',
         help='use conv output'
@@ -305,6 +312,8 @@ def parse_finetune_args():
         setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}'
     elif args.finetune_method == "combined":
         setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}_{args.adapter_hidden_dim}_{args.embedding_prompt_dim}_{args.lora_rank}'
+    elif args.finetune_method == "ladder":
+        setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}_{args.ladder_reduction_factor}'
     args.setting = setting
     if args.finetune_emb != "all":
         args.setting = args.setting + "_avgtok"

@@ -109,16 +109,21 @@ class WavLMWrapper(nn.Module):
         self.model_config.adapter_hidden_dim     = args.adapter_hidden_dim
         self.model_config.embedding_prompt_dim   = args.embedding_prompt_dim
         self.model_config.lora_rank              = args.lora_rank
+        self.ladder_reduction_factor             = args.ladder_reduction_factor
         
         # 3. Config encoder layers with adapter or embedding prompt
         # pdb.set_trace()
         self.backbone_model.encoder.layers = nn.ModuleList(
             [WavLMEncoderLayer(self.model_config, has_relative_position_bias=(i == 0)) for i in range(self.model_config.num_hidden_layers)]
         )
+        if self.args.finetune_method == "ladder": 
+            self.ladder_down = nn.Linear(self.model_config.hidden_size, self.model_config.hidden_size // self.ladder_reduction_factor)
+            self.ladder_up = nn.Linear(self.model_config.hidden_size // self.ladder_reduction_factor, self.model_config.hidden_size)
+            self.ladder_side_layers = nn.ModuleList([ladder_side_layer(self.model_config.hidden_size, self.model_config.hidden_size // self.ladder_reduction_factor) for i in range(self.model_config.num_hidden_layers)])
         # 4. Load the weights back
         msg = self.backbone_model.load_state_dict(state_dict, strict=False)
         # 5. Freeze the weights
-        if self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora" or self.args.finetune_method == "combined":
+        if self.args.finetune_method == "ladder" or self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora" or self.args.finetune_method == "combined":
             for name, p in self.backbone_model.named_parameters():
                 if name in msg.missing_keys: p.requires_grad = True
                 else: p.requires_grad = False
@@ -161,15 +166,24 @@ class WavLMWrapper(nn.Module):
             length = length.cuda()
             
         # 3. transformer encoding features
-        x = self.backbone_model.encoder(
+        ladder_x = self.ladder_down(x)
+        hidden_states = self.backbone_model.encoder(
             x, output_hidden_states=True
         ).hidden_states
+
+        ladder_hidden = []
         
+        for i in range(len(x)):
+            layer = self.ladder_side_layers[i]
+            ladder_x = layer(ladder_x, hidden_states[i])
+            ladder_hidden.append(ladder_x)
+        x = self.ladder_up(ladder_x)
+
         # 4. stacked feature
         if self.args.use_conv_output:
-            stacked_feature = torch.stack(x, dim=0)
+            stacked_feature = torch.stack(hidden_states, dim=0)
         else:
-            stacked_feature = torch.stack(x, dim=0)[1:]
+            stacked_feature = torch.stack(hidden_states, dim=0)[1:]
         
         # 5. Weighted sum
         _, *origin_shape = stacked_feature.shape
@@ -226,7 +240,19 @@ def prepare_mask(length, shape, dtype):
     mask[(torch.arange(mask.shape[0]), length.cpu() - 1)] = 1
     mask = mask.flip([-1]).cumsum(-1).flip([-1]).bool()
     return mask
+
+class ladder_side_layer(nn.Module):
+    def __init__(self, input_dim, hidden_dim) -> None:
+        super().__init__()
+        self.linear = nn.Linear(input_dim, hidden_dim)
+        self.gate = nn.Parameter(torch.randn(1))
+        self.transformer_block = nn.TransformerEncoderLayer(d_model=hidden_dim, nhead=1, dim_feedforward=hidden_dim*2, batch_first=True)
     
+    def forward(self, x, h_pt):
+        h_pt = self.linear(h_pt)
+        gate = F.sigmoid(self.gate)
+        x = gate * x + (1-gate) * h_pt
+        return self.transformer_block(x)   
     
 if __name__ == '__main__':
     
